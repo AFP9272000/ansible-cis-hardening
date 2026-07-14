@@ -1,0 +1,8 @@
+---
+# 1. Generate a SHA-512 crypt hash (never store the plaintext):
+#      openssl passwd -6 'YourBreakGlassPassword'
+# 2. Copy this file to vault.yml and paste the hash below.
+# 3. Encrypt it:
+#      ansible-vault encrypt group_vars/all/vault.yml
+# 4. Commit the encrypted vault.yml. Never commit this example with a real hash.
+vault_labadmin_password_hash: "PASTE_OUTPUT_OF_openssl_passwd_-6_HERE"

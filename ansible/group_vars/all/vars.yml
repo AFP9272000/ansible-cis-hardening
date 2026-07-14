@@ -1,0 +1,5 @@
+---
+# Public variables. Secrets live in vault.yml, encrypted with Ansible Vault.
+# The default('!') keeps the break-glass account locked until the vaulted
+# hash exists, so the role is safe to run before the vault is created.
+labadmin_password_hash: "{{ vault_labadmin_password_hash | default('!') }}"

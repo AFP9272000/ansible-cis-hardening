@@ -1,0 +1,45 @@
+---
+# Tunables for the CIS hardening subset. Values track the CIS Ubuntu Linux
+# 24.04 LTS Benchmark. Override per group or host as needed.
+
+# SSH daemon settings rendered into /etc/ssh/sshd_config.d/00-cis-hardening.conf.
+# OpenSSH keeps the first value it reads, so a 00- prefixed drop-in wins over
+# later files and over the main sshd_config body.
+cis_hardening_ssh_settings:
+  PermitRootLogin: "no"
+  PasswordAuthentication: "no"
+  PermitEmptyPasswords: "no"
+  MaxAuthTries: "4"
+  X11Forwarding: "no"
+  ClientAliveInterval: "300"
+  ClientAliveCountMax: "3"
+  LoginGraceTime: "60"
+  Banner: "/etc/issue.net"
+
+cis_hardening_login_banner: |
+  Authorized use only. Activity on this system is monitored and audited.
+  Disconnect immediately if you are not an authorized user.
+
+# Password quality (libpam-pwquality) and aging policy.
+cis_hardening_pwquality:
+  retry: 3
+  minlen: 14
+  minclass: 4
+
+cis_hardening_login_defs:
+  PASS_MAX_DAYS: 365
+  PASS_MIN_DAYS: 1
+  PASS_WARN_AGE: 7
+
+# Break-glass local administrator. The password hash comes from Ansible Vault
+# via group_vars; the locked-hash default keeps the account unusable until a
+# real vaulted secret is supplied. SSH password auth stays disabled, so this
+# credential is for console or SSM access only.
+cis_hardening_breakglass_user: labadmin
+
+# auditd configuration.
+cis_hardening_auditd_max_log_file: 32
+
+# Firewall: only these TCP ports are reachable, everything else inbound is denied.
+cis_hardening_ufw_allowed_tcp_ports:
+  - 22

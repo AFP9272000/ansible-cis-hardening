@@ -1,0 +1,24 @@
+---
+- name: Harden SSH daemon configuration
+  ansible.builtin.import_tasks: ssh.yml
+  tags: [ssh]
+
+- name: Enforce password quality and aging policy
+  ansible.builtin.import_tasks: password_policy.yml
+  tags: [password_policy]
+
+- name: Manage local accounts
+  ansible.builtin.import_tasks: accounts.yml
+  tags: [accounts]
+
+- name: Configure auditd and audit rules
+  ansible.builtin.import_tasks: auditd.yml
+  tags: [auditd]
+
+- name: Configure host firewall
+  ansible.builtin.import_tasks: firewall.yml
+  tags: [firewall]
+
+- name: Apply patches and enable unattended upgrades
+  ansible.builtin.import_tasks: patching.yml
+  tags: [patching]

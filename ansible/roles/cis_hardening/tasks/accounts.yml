@@ -1,0 +1,15 @@
+---
+- name: Lock the root account password
+  ansible.builtin.user:
+    name: root
+    password_lock: true
+
+- name: Create break-glass administrator with vaulted credential
+  ansible.builtin.user:
+    name: "{{ cis_hardening_breakglass_user }}"
+    password: "{{ labadmin_password_hash }}"
+    groups: sudo
+    append: true
+    shell: /bin/bash
+    state: present
+  no_log: true

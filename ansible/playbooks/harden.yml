@@ -1,0 +1,6 @@
+---
+- name: Apply CIS hardening baseline to lab targets
+  hosts: role_cis_target
+  become: true
+  roles:
+    - cis_hardening

@@ -1,0 +1,102 @@
+---
+# Runs an OpenSCAP evaluation against the CIS Ubuntu 24.04 Level 2 Server
+# profile and pulls the evidence back to the control node.
+#
+#   ansible-playbook playbooks/scan.yml -e phase=baseline
+#   ansible-playbook playbooks/scan.yml -e phase=hardened
+#
+# The Level 2 Server profile is a superset of Level 1 and is used because
+# the CIS Ubuntu benchmark places auditd controls at Level 2.
+- name: Run OpenSCAP CIS scan and collect evidence
+  hosts: role_cis_target
+  become: true
+  vars:
+    scan_phase: "{{ phase | default('baseline') }}"
+    ssg_version: "0.1.81"
+    ssg_release_base: "https://github.com/ComplianceAsCode/content/releases/download"
+    ssg_zip_url: "{{ ssg_release_base }}/v{{ ssg_version }}/scap-security-guide-{{ ssg_version }}.zip"
+    ssg_zip_sha256: "865e28b793e1e65f7f0102434bc7d962324a4b9324591e60742f1e9ce375172c"
+    ssg_datastream: "ssg-ubuntu2404-ds.xml"
+    scan_profile: "xccdf_org.ssgproject.content_profile_cis_level2_server"
+    local_cache_dir: "{{ playbook_dir }}/../.cache"
+    results_dir: "{{ playbook_dir }}/../../scans/results"
+
+  pre_tasks:
+    - name: Fetch pinned SCAP content once on the control node # noqa: run-once[task] (delegated to localhost)
+      delegate_to: localhost
+      become: false
+      run_once: true
+      block:
+        - name: Ensure local cache directory exists
+          ansible.builtin.file:
+            path: "{{ local_cache_dir }}"
+            state: directory
+            mode: "0755"
+
+        - name: Download ComplianceAsCode release (checksum pinned)
+          ansible.builtin.get_url:
+            url: "{{ ssg_zip_url }}"
+            dest: "{{ local_cache_dir }}/scap-security-guide-{{ ssg_version }}.zip"
+            checksum: "sha256:{{ ssg_zip_sha256 }}"
+            mode: "0644"
+
+        - name: Extract only the Ubuntu 24.04 datastream # noqa: command-instead-of-module (unarchive cannot extract a single member)
+          ansible.builtin.command:
+            cmd: >
+              unzip -o scap-security-guide-{{ ssg_version }}.zip
+              scap-security-guide-{{ ssg_version }}/{{ ssg_datastream }}
+            chdir: "{{ local_cache_dir }}"
+            creates: "{{ local_cache_dir }}/scap-security-guide-{{ ssg_version }}/{{ ssg_datastream }}"
+
+  tasks:
+    - name: Install OpenSCAP scanner
+      ansible.builtin.apt:
+        name: openscap-scanner
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure content directory exists on target
+      ansible.builtin.file:
+        path: /opt/scap
+        state: directory
+        mode: "0755"
+
+    - name: Copy datastream to target
+      ansible.builtin.copy:
+        src: "{{ local_cache_dir }}/scap-security-guide-{{ ssg_version }}/{{ ssg_datastream }}"
+        dest: "/opt/scap/{{ ssg_datastream }}"
+        mode: "0644"
+
+    # oscap exits 0 when everything passes and 2 when any rule fails.
+    # Both are successful evaluations; only rc 1 is a scanner error.
+    - name: Evaluate host against CIS profile
+      ansible.builtin.command:
+        cmd: >
+          oscap xccdf eval
+          --profile {{ scan_profile }}
+          --results /tmp/oscap-{{ scan_phase }}.xml
+          --report /tmp/oscap-{{ scan_phase }}.html
+          /opt/scap/{{ ssg_datastream }}
+      register: oscap_eval
+      changed_when: false
+      failed_when: oscap_eval.rc not in [0, 2]
+
+    - name: Collect machine-readable results
+      ansible.builtin.fetch:
+        src: "/tmp/oscap-{{ scan_phase }}.xml"
+        dest: "{{ results_dir }}/{{ inventory_hostname }}-{{ scan_phase }}.xml"
+        flat: true
+
+    - name: Collect human-readable report
+      ansible.builtin.fetch:
+        src: "/tmp/oscap-{{ scan_phase }}.html"
+        dest: "{{ results_dir }}/{{ inventory_hostname }}-{{ scan_phase }}.html"
+        flat: true
+
+    - name: Show evaluation outcome
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} {{ scan_phase }} scan complete
+          (oscap rc={{ oscap_eval.rc }}, 2 means findings exist, which is
+          expected on a baseline).

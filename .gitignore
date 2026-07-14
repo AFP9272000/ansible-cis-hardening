@@ -1,0 +1,21 @@
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+!terraform/terraform.tfvars.example
+crash.log
+
+# Ansible
+ansible/.cache/
+*.retry
+.vault_pass
+
+# Never commit the plaintext vault source, only the encrypted vault.yml
+ansible/group_vars/all/vault.yml.plain
+
+# Scan evidence: keep HTML reports and the delta, skip bulky results XML
+scans/results/*.xml
+
+# OS noise
+.DS_Store

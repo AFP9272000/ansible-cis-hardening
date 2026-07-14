@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+# CIS hardening drop-in. OpenSSH keeps the first value it reads, so this
+# 00- prefixed file takes precedence over later includes and the main config.
+{% for key, value in cis_hardening_ssh_settings.items() %}
+{{ key }} {{ value }}
+{% endfor %}

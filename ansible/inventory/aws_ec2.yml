@@ -1,0 +1,23 @@
+---
+# amazon.aws.aws_ec2 dynamic inventory plugin.
+# Discovers targets by tag instead of a static hosts file, so the inventory
+# is always the live state of the account.
+plugin: amazon.aws.aws_ec2
+
+regions:
+  - us-east-1
+
+filters:
+  tag:Project: ansible-cis-hardening-lab
+  instance-state-name: running
+
+hostnames:
+  - tag:Name
+
+# Tag Role=cis_target becomes group role_cis_target, which the playbooks use.
+keyed_groups:
+  - key: tags.Role
+    prefix: role
+
+compose:
+  ansible_host: public_ip_address

@@ -1,0 +1,83 @@
+<mxfile host="app.diagrams.net" agent="ansible-cis-hardening-lab" version="24.0.0">
+  <diagram id="cis-lab-arch" name="architecture">
+    <mxGraphModel dx="1400" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1160" pageHeight="700" math="0" shadow="0" background="#111111">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="Ansible CIS Hardening Lab: Terraform + Ansible + OpenSCAP + NIST 800-53" style="text;html=1;fontSize=18;fontStyle=1;fontColor=#F5F5F5;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="900" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="aws" value="AWS us-east-1" style="rounded=1;fillColor=#1B1B1B;strokeColor=#FF9900;fontColor=#FF9900;fontStyle=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="560" y="80" width="560" height="420" as="geometry" />
+        </mxCell>
+        <mxCell id="vpc" value="VPC 10.20.0.0/16" style="rounded=1;fillColor=#1F1F1F;strokeColor=#4D9DE0;fontColor=#4D9DE0;fontStyle=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="590" y="130" width="400" height="340" as="geometry" />
+        </mxCell>
+        <mxCell id="subnet" value="Public subnet 10.20.1.0/24" style="rounded=1;fillColor=#242424;strokeColor=#7FB069;fontColor=#7FB069;fontStyle=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="620" y="180" width="340" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2a" value="EC2 cis-lab-0&#10;Ubuntu 24.04&#10;tag Role=cis_target" style="rounded=1;fillColor=#2D2D2D;strokeColor=#FF9900;fontColor=#F5F5F5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="645" y="230" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2b" value="EC2 cis-lab-1&#10;Ubuntu 24.04&#10;tag Role=cis_target" style="rounded=1;fillColor=#2D2D2D;strokeColor=#FF9900;fontColor=#F5F5F5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="805" y="230" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="sg" value="Security group: SSH 22 from operator or runner /32 only" style="text;html=1;fontSize=11;fontColor=#BBBBBB;align=left;" vertex="1" parent="1">
+          <mxGeometry x="640" y="320" width="300" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="oscap" value="OpenSCAP scan on host&#10;CIS L2 Server profile&#10;(SSG 0.1.81, sha256 pinned)" style="rounded=1;fillColor=#2D2D2D;strokeColor=#2EC4B6;fontColor=#F5F5F5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="690" y="345" width="200" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="igw" value="Internet gateway" style="rounded=1;fillColor=#2D2D2D;strokeColor=#4D9DE0;fontColor=#F5F5F5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="640" y="425" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="iam" value="IAM: OIDC role for CI&#10;SSM instance profile (break-glass)" style="rounded=1;fillColor=#2D2D2D;strokeColor=#FF9900;fontColor=#F5F5F5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="180" width="100" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="gha" value="GitHub Actions&#10;compliance-pipeline&#10;(lint + workflow_dispatch)" style="rounded=1;fillColor=#1F1F1F;strokeColor=#8B5CF6;fontColor=#F5F5F5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="control" value="Control node (runner or laptop)" style="rounded=1;fillColor=#1B1B1B;strokeColor=#888888;fontColor=#DDDDDD;fontStyle=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="200" width="420" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="tf" value="Terraform&#10;VPC, SG, IAM, 2x EC2" style="rounded=1;fillColor=#2D2D2D;strokeColor=#7B42BC;fontColor=#F5F5F5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="70" y="250" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ansible" value="Ansible&#10;role cis_hardening&#10;playbooks harden + scan" style="rounded=1;fillColor=#2D2D2D;strokeColor=#E00000;fontColor=#F5F5F5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="70" y="340" width="160" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="inv" value="aws_ec2 dynamic inventory&#10;(tag filtered)" style="rounded=1;fillColor=#2D2D2D;strokeColor=#E00000;fontColor=#F5F5F5;align=center;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="270" y="340" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="vault" value="Ansible Vault&#10;break-glass credential" style="rounded=1;fillColor=#2D2D2D;strokeColor=#E0A800;fontColor=#F5F5F5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="270" y="420" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="evidence" value="Evidence: baseline + hardened reports,&#10;compliance-delta.md, CI artifacts" style="rounded=1;fillColor=#1F1F1F;strokeColor=#2EC4B6;fontColor=#F5F5F5;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="560" width="390" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" value="OIDC AssumeRole (no static keys)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#8B5CF6;fontColor=#CCCCCC;fontSize=11;" edge="1" parent="1" source="gha" target="iam">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="triggers" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#888888;fontColor=#CCCCCC;fontSize=11;" edge="1" parent="1" source="gha" target="control">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="terraform apply" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7B42BC;fontColor=#CCCCCC;fontSize=11;" edge="1" parent="1" source="tf" target="vpc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="EC2 DescribeInstances" style="edgeStyle=orthogonalEdgeStyle;rounded=1;dashed=1;strokeColor=#E00000;fontColor=#CCCCCC;fontSize=11;" edge="1" parent="1" source="inv" target="aws">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="SSH 22 (scoped /32)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#E00000;fontColor=#CCCCCC;fontSize=11;" edge="1" parent="1" source="ansible" target="ec2a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="results + reports fetched" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#2EC4B6;fontColor=#CCCCCC;fontSize=11;" edge="1" parent="1" source="oscap" target="evidence">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

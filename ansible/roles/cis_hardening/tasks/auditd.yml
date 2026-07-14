@@ -1,0 +1,36 @@
+---
+- name: Install auditd and dispatcher plugins
+  ansible.builtin.apt:
+    name:
+      - auditd
+      - audispd-plugins
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Set audit log size and retention behavior
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^{{ item.key }}\s*='
+    line: "{{ item.key }} = {{ item.value }}"
+  loop:
+    - key: max_log_file
+      value: "{{ cis_hardening_auditd_max_log_file }}"
+    - key: max_log_file_action
+      value: keep_logs
+  notify: Restart auditd
+
+- name: Deploy CIS audit rule subset
+  ansible.builtin.template:
+    src: audit_cis.rules.j2
+    dest: /etc/audit/rules.d/99-cis-hardening.rules
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Load audit rules
+
+- name: Ensure auditd is enabled and running
+  ansible.builtin.service:
+    name: auditd
+    enabled: true
+    state: started

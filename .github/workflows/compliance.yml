@@ -1,0 +1,155 @@
+---
+name: compliance-pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      teardown:
+        description: Destroy the lab after collecting evidence
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform format check
+        run: terraform fmt -check -recursive terraform
+
+      - name: Terraform validate
+        run: |
+          terraform -chdir=terraform init -backend=false -input=false
+          terraform -chdir=terraform validate
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible and lint tooling
+        run: |
+          pip install "ansible>=9" ansible-lint
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Ansible syntax check
+        working-directory: ansible
+        run: |
+          ansible-playbook --syntax-check -i localhost, playbooks/harden.yml
+          ansible-playbook --syntax-check -i localhost, playbooks/scan.yml
+
+      - name: Ansible lint
+        working-directory: ansible
+        run: ansible-lint
+
+  # Full pipeline: provision, baseline scan, enforce, rescan, publish evidence.
+  # Manual trigger only, since it creates billable (if tiny) AWS resources.
+  harden-and-scan:
+    if: github.event_name == 'workflow_dispatch'
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible and AWS SDK
+        run: |
+          pip install "ansible>=9" boto3 botocore
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Write SSH key pair from secrets
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/cis_lab
+          printf '%s\n' "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/cis_lab.pub
+          chmod 600 ~/.ssh/cis_lab
+
+      - name: Write Ansible Vault password from secret
+        run: |
+          printf '%s\n' "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > "$RUNNER_TEMP/.vault_pass"
+          echo "ANSIBLE_VAULT_PASSWORD_FILE=$RUNNER_TEMP/.vault_pass" >> "$GITHUB_ENV"
+
+      # The SSH rule is scoped to this runner's egress IP for the life of
+      # the job, so port 22 is never open to the world.
+      - name: Discover runner egress IP
+        id: runner_ip
+        run: echo "ip=$(curl -s https://checkip.amazonaws.com)" >> "$GITHUB_OUTPUT"
+
+      - name: Terraform apply
+        working-directory: terraform
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false \
+            -var "allowed_ssh_cidr=${{ steps.runner_ip.outputs.ip }}/32" \
+            -var "ssh_public_key_path=~/.ssh/cis_lab.pub"
+
+      - name: Wait for SSH on all targets
+        working-directory: ansible
+        run: |
+          for i in $(seq 1 20); do
+            if ansible role_cis_target -m ping > /dev/null 2>&1; then
+              echo "All targets reachable" && exit 0
+            fi
+            echo "Waiting for targets ($i/20)..." && sleep 15
+          done
+          echo "Targets never became reachable" && exit 1
+
+      - name: Baseline OpenSCAP scan
+        working-directory: ansible
+        run: ansible-playbook playbooks/scan.yml -e phase=baseline
+
+      - name: Enforce CIS hardening baseline
+        working-directory: ansible
+        run: ansible-playbook playbooks/harden.yml
+
+      - name: Post-hardening OpenSCAP scan
+        working-directory: ansible
+        run: ansible-playbook playbooks/scan.yml -e phase=hardened
+
+      - name: Generate compliance delta
+        run: |
+          python3 scripts/compliance_delta.py scans/results \
+            -o scans/results/compliance-delta.md
+
+      - name: Publish delta to run summary
+        run: cat scans/results/compliance-delta.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload compliance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-evidence
+          path: scans/results/
+          if-no-files-found: error
+
+      - name: Terraform destroy
+        if: always() && inputs.teardown
+        working-directory: terraform
+        run: |
+          terraform destroy -auto-approve -input=false \
+            -var "allowed_ssh_cidr=${{ steps.runner_ip.outputs.ip }}/32" \
+            -var "ssh_public_key_path=~/.ssh/cis_lab.pub" || true
