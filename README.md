@@ -7,7 +7,7 @@
 ![NIST](https://img.shields.io/badge/NIST-SP_800--53-0A66C2)
 ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-OIDC-2088FF?logo=githubactions&logoColor=white)
 
-Automated compliance enforcement with evidence. Terraform provisions Ubuntu 24.04 targets on AWS, an Ansible role enforces a CIS benchmark subset, and OpenSCAP scans before and after hardening prove the compliance delta. Every hardening task is mapped to NIST SP 800-53 controls, and the whole loop runs from GitHub Actions with OIDC.
+Automated compliance enforcement with evidence. Terraform provisions Ubuntu 24.04 targets on AWS, an Ansible role enforces a CIS benchmark subset, and OpenSCAP scans before and after hardening prove the compliance delta. Every hardening task is mapped to NIST SP 800-53 controls, and the whole loop runs from GitHub Actions with OIDC (no static cloud keys).
 
 The workflow models how ATO evidence collection works in practice: establish a scanned baseline, enforce configuration as code, re-scan, and archive machine-readable plus human-readable results as artifacts.
 
@@ -68,6 +68,8 @@ Terraform >= 1.6, Ansible >= 2.15 (`pip install "ansible>=9" boto3 botocore`), A
 
 ## Runbook
 
+### Linux and macOS
+
 1. Generate a lab key pair:
 
    ```bash
@@ -123,6 +125,75 @@ Terraform >= 1.6, Ansible >= 2.15 (`pip install "ansible>=9" boto3 botocore`), A
    cd terraform && terraform destroy
    ```
 
+### Windows (PowerShell + WSL2)
+
+ansible-core does not support Windows as a control node, so the Ansible commands below run inside WSL2 Ubuntu while Terraform, the key handoff, and the delta script stay in PowerShell. Git Bash is not a substitute: it provides bash syntax, not a POSIX runtime, so Ansible cannot install there either. If you prefer working in bash end to end, clone the repo inside the WSL filesystem (under `~`, not `/mnt/c`) and follow the Linux runbook verbatim instead. Every `ansible-*` command below carries `ANSIBLE_CONFIG=ansible.cfg` because WSL mounts Windows drives world writable and Ansible refuses to auto-load `ansible.cfg` from world-writable directories. `wsl` inherits the current PowerShell directory, so run each block from the directory shown.
+
+1. One-time setup:
+
+   ```powershell
+   winget install Hashicorp.Terraform
+   winget install Python.Python.3.12
+   wsl --install -d Ubuntu
+   wsl -d Ubuntu -- bash -c "sudo apt update && sudo apt install -y ansible python3-boto3 unzip"
+   ```
+
+2. Generate the lab key pair inside WSL (the private key must live on the Linux side to keep 0600 permissions), then export the public half for Terraform:
+
+   ```powershell
+   wsl -d Ubuntu -- bash -c "ssh-keygen -t ed25519 -f ~/.ssh/cis_lab -N ''"
+   New-Item -ItemType Directory -Force "$env:USERPROFILE\.ssh" | Out-Null
+   wsl -d Ubuntu -- bash -c "cat ~/.ssh/cis_lab.pub" | Set-Content -Encoding ascii "$env:USERPROFILE\.ssh\cis_lab.pub"
+   ```
+
+3. Authenticate to AWS in PowerShell as usual, then share the session with WSL so the dynamic inventory sees the same credentials:
+
+   ```powershell
+   $env:WSLENV = "AWS_ACCESS_KEY_ID:AWS_SECRET_ACCESS_KEY:AWS_SESSION_TOKEN:AWS_DEFAULT_REGION"
+   ```
+
+   If you use `~/.aws` credential files instead of environment variables, copy them into the WSL home as well.
+
+4. Provision the targets:
+
+   ```powershell
+   cd terraform
+   Copy-Item terraform.tfvars.example terraform.tfvars
+   (Invoke-RestMethod https://checkip.amazonaws.com).Trim()   # set allowed_ssh_cidr to this IP /32
+   terraform init
+   terraform apply
+   ```
+
+5. Install collections and create the vaulted secret:
+
+   ```powershell
+   cd ..\ansible
+   wsl -d Ubuntu -- bash -c "ansible-galaxy collection install -r requirements.yml"
+   Copy-Item group_vars\all\vault.yml.example group_vars\all\vault.yml
+   wsl -d Ubuntu -- bash -c "openssl passwd -6 'YourBreakGlassPassword'"
+   notepad group_vars\all\vault.yml   # paste the hash, save, close
+   wsl -d Ubuntu -- bash -c "ANSIBLE_CONFIG=ansible.cfg ansible-vault encrypt group_vars/all/vault.yml"
+   ```
+
+6. Confirm the dynamic inventory, then baseline scan, harden, re-scan:
+
+   ```powershell
+   wsl -d Ubuntu -- bash -c "ANSIBLE_CONFIG=ansible.cfg ansible-inventory --graph"
+   wsl -d Ubuntu -- bash -c "ANSIBLE_CONFIG=ansible.cfg ansible-playbook playbooks/scan.yml -e phase=baseline --ask-vault-pass"
+   wsl -d Ubuntu -- bash -c "ANSIBLE_CONFIG=ansible.cfg ansible-playbook playbooks/harden.yml --ask-vault-pass"
+   wsl -d Ubuntu -- bash -c "ANSIBLE_CONFIG=ansible.cfg ansible-playbook playbooks/scan.yml -e phase=hardened --ask-vault-pass"
+   ```
+
+7. Generate the delta, verify idempotence (the second hardening run should report zero changes), tear down:
+
+   ```powershell
+   cd ..
+   python scripts\compliance_delta.py scans\results -o scans\results\compliance-delta.md
+   wsl -d Ubuntu -- bash -c "ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook ansible/playbooks/harden.yml --ask-vault-pass"
+   cd terraform
+   terraform destroy
+   ```
+
 ## Evidence
 
 `scans/results/` holds, per host, a baseline HTML report, a hardened HTML report, and `compliance-delta.md` summarizing result counts and every rule that flipped from fail to pass. Machine-readable XCCDF results XML is generated alongside but excluded from version control by size; the CI pipeline uploads all of it as a build artifact.
@@ -136,6 +207,8 @@ Terraform >= 1.6, Ansible >= 2.15 (`pip install "ansible>=9" boto3 botocore`), A
 
 - **lint** on every push and pull request: `terraform fmt` and `validate`, `ansible-playbook --syntax-check`, and `ansible-lint`.
 - **harden-and-scan** on manual `workflow_dispatch`: authenticates to AWS through GitHub's OIDC provider (no long-lived keys), discovers its own egress IP and applies Terraform with SSH scoped to that runner /32, waits for the targets, then runs baseline scan, hardening, re-scan, and delta generation, and uploads everything in `scans/results/` as a `compliance-evidence` artifact. Teardown runs in an `always()` step so a failed run does not orphan instances; set the `teardown` input to false to keep the lab up for inspection.
+
+Required repository secrets: `AWS_ROLE_ARN` (OIDC trust to this repo), `SSH_PRIVATE_KEY`, `SSH_PUBLIC_KEY`, `ANSIBLE_VAULT_PASSWORD`.
 
 ## Design notes
 

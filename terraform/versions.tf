@@ -9,7 +9,7 @@ terraform {
   }
 
   # For CI-driven runs that must persist state between jobs, switch to a
-  # remote backend. Local state is fine that applies and destroys
+  # remote backend. Local state is fine for a lab that applies and destroys
   # within the same session.
   #
   # backend "s3" {
