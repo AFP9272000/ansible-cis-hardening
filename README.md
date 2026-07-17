@@ -13,9 +13,8 @@ The workflow models how ATO evidence collection works in practice: establish a s
 
 ## Architecture
 
-![Architecture](diagrams/architecture.png)
+<img width="1113" height="601" alt="architecture" src="https://github.com/user-attachments/assets/477cd560-d557-4cee-b87e-3472d0cb1401" />
 
-Diagram source: [`diagrams/architecture.drawio`](diagrams/architecture.drawio)
 
 Flow: Terraform builds a VPC, a public subnet, an SSH security group scoped to a single /32, an SSM-enabled instance profile, and two EC2 targets tagged `Role=cis_target`. The `amazon.aws.aws_ec2` dynamic inventory plugin discovers targets by tag, so there is no static hosts file. Ansible runs a baseline OpenSCAP scan, applies the `cis_hardening` role, re-scans, and fetches both scans back as evidence. A Python script diffs the two XCCDF result sets into a markdown compliance delta.
 
