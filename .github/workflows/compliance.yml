@@ -6,7 +6,10 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-    inputs:
+    inputs: 
+      scan_profile:
+        description: OpenSCAP profile id
+        default: xccdf_org.ssgproject.content_profile_cis_level2_server
       teardown:
         description: Destroy the lab after collecting evidence
         type: boolean
