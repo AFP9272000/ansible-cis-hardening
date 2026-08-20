@@ -1,4 +1,4 @@
-# Ansible CIS Hardening Lab on AWS
+# Ansible CIS Hardening on AWS
 
 ![Terraform](https://img.shields.io/badge/Terraform-844FBA?logo=terraform&logoColor=white)
 ![Ansible](https://img.shields.io/badge/Ansible-EE0000?logo=ansible&logoColor=white)
